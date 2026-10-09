@@ -2,8 +2,9 @@ import streamlit as st
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
-matplotlib.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei"]
-matplotlib.rcParams["axes.unicode_minus"] = False
+# ========== 修复matplotlib中文方框：注册项目自带开源中文字体（云端Linux无中文字体） ==========
+from user_risk_func import setup_cn_font
+setup_cn_font()
 import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="风控系统全局概览", layout="wide")

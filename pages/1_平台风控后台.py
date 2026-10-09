@@ -5,8 +5,9 @@ import matplotlib
 
 matplotlib.use('Agg')
 # ========== 修复matplotlib中文方框【新增这一段】 ==========
-matplotlib.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei']
-matplotlib.rcParams['axes.unicode_minus'] = False  # 负号正常显示
+# ========== 修复matplotlib中文方框：注册项目自带开源中文字体（云端Linux无中文字体） ==========
+from user_risk_func import setup_cn_font
+setup_cn_font()
 import matplotlib.pyplot as plt
 from user_risk_func import (
     detect_user_risk,

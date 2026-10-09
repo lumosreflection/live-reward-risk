@@ -1,63 +1,173 @@
-# LiveChat: A Large-Scale Personalized Dialogue Dataset Automatically Constructed from Live Streaming
-This is the official repository for the ACL 2023 paper "LiveChat: A Large-Scale Personalized Dialogue Dataset Automatically Constructed from Live Streaming"
+# 未成年直播非理性消费综合责任保险・AI 风控原型系统
 
-![DataConstruction](./Image/DataConstruction.png)
-LiveChat is a large-scale dataset, composed of 1.33 million real-life Chinese dialogues with almost 3800 average sessions across 351 personas and fine-grained profiles for each persona. LiveChat is automatically constructed by processing numerous live videos on the Internet and naturally falls within the scope of multi-party conversations.
+> 参赛项目可运行 MVP 原型（Streamlit 多页面）
+> 环境：Anaconda + Python 3.9
 
-This repo implements two benchmark tasks (Response Modeling and Addressee Recognition) and a generation task (Generation) for LiveChat:
+## 一、项目简介
 
-- [Response Modeling](https://github.com/gaojingsheng/LiveChat/tree/master/Tasks/ResponseModeling) (Retrival-based) 
-- [Addressee Recognition](https://github.com/gaojingsheng/LiveChat/tree/master/Tasks/AddresseeRecognition)
-- [Generation](https://github.com/gaojingsheng/LiveChat/tree/master/Tasks/Generation) (BART)
+针对未成年人在直播平台被诱导高额打赏、**举证难、责任认定难、理赔难**的痛点，设计 "保险 + AI 风控" 一体化方案：
 
-Instructions of how to run these models on the two tasks are described in their README files. Before trying them, you need to first download the dataset and unzip it into the folder ./Dataset. The file tree should be like
+
+
+* 通过**用户行为异常检测**与**直播话术语音识别**，实时识别风险并自动固定证据链；
+
+* 对接**多方责任划分、赔款计算、承保定价**，形成保险业务闭环。
+
+本仓库为可本地运行、可完整演示业务流程的原型系统。
+
+## 二、技术栈
+
+
+
+| 环节        | 技术                                             |
+| --------- | ---------------------------------------------- |
+| 前端演示      | Streamlit 多页面                                  |
+| 行为异常检测    | PyOD 孤立森林 + LightGBM                           |
+| 话语文本分类    | BERT-base-chinese 微调（HuggingFace Transformers） |
+| 语音转写      | OpenAI Whisper                                 |
+| 数据处理 / 建模 | pandas、numpy、scikit-learn                      |
+| 可视化       | matplotlib                                     |
+
+## 三、系统业务流程
+
+**链路一・行为风控**
+
+送礼数据 → 特征工程（含夜间行为）→ 孤立森林 / LightGBM → 风险分 + 三级预警（紧急 / 关注 / 正常）
+
+**链路二・话术风控**
+
+直播音频 → Whisper 转写 → 按句切分 → BERT 逐句识别 → 任一句诱导则整场标记风险，记录风险句
+
+**保险闭环**
+
+证据包（ZIP）→ 多方责任划分 → 赔款计算 → 理赔审核 / 承保定价 / 风险档案
+
+## 四、核心目录结构
+
+
 
 ```
-.
-+-- dataset
-|   +-- train.json
-|   +-- val.json
-|   +-- test.json
-|   +-- basic_profile.json
-|   +-- text_profile.json
+LiveChat-master/
+├─ streamlit_risk_main.py        # 系统主入口（导航首页）
+├─ user_risk_func.py             # 全部公共函数（风控/话术/责任/赔款/定价/证据）
+├─ gift.csv                      # 本地仿真打赏数据（开箱即可演示）
+├─ merge_danmu_dataset.py        # 话术数据集合并与划分脚本
+├─ train_bert_local.py           # BERT 本地微调脚本
+├─ requirements.txt              # 依赖清单
+├─ README.md                    # 本说明（GitHub首页展示）
+├─ pages/                        # 各角色页面（0全局概览 … 6风险档案）
+├─ dataset/                      # 话术训练数据集（train/val/test、speech_data）
+├─ bert_live_speech_best/        # 训练好的 BERT 模型与 tokenizer
+├─ output/                       # 保险证据包输出（evidence_package）
+└─ 测试集_过时文件集/             # 旧版本/探索分析/测试脚本/日志等归档，不影响产品
+    ├─ 1_旧版本废弃代码/  2_探索性分析与绘图/  3_模型板块功能_单元测试与验证脚本/
+    ├─ 4_日志与临时输出/  5_原始、中间数据与冗余资源/  6_实验脚本/
+    └─ 7_数据生成脚本/  8_待定/
 ```
 
-## Enviroment
-You need to clone our project：
-```bash
-$ git clone https://github.com/gaojingsheng/LiveChat.git
+## 五、环境搭建
+
+
+
+```
+# 1. 创建并激活虚拟环境
+conda create -n minor_risk python=3.10
+conda activate minor_risk
+
+# 2. 安装依赖
+pip install -r requirements.txt
 ```
 
+> Whisper 音频处理需要系统安装
+> **ffmpeg**
+> ；不安装也可使用页面内置的 Mock 转写完成演示。
 
-Create the environment and download the packages
-```bash
-$ conda create -n LiveChat python==3.8
-$ conda activate LiveChat
-$ pip install -r requirements.txt
+## 六、启动方式
+
+打开 **Anaconda Prompt**，执行：
+
+
+
+```
+cd /d "D:\比赛\保险类\中财保险+智能\数据集素材\LiveChat-master"
+conda activate minor_risk
+streamlit run streamlit_risk_main.py
 ```
 
-## DataSet
-### Download
-Please refer to dataset [README.md](https://github.com/gaojingsheng/LiveChat/blob/master/Dataset/README.md)
+> 启动前命令行
+>
+> **当前目录必须是项目根目录**
+>
+> （与 streamlit_risk_main.py 同级），否则页面、模型相对路径会找不到。
+
+浏览器自动打开后，通过左侧边栏切换各角色页面。建议演示顺序：
+
+**平台风控后台（跑行为检测 + 上传音频识别话术）→ 监护人页面 → 主播页面 → 生成证据包 → 理赔审核 → 承保定价 → 风险档案 → 全局概览**。
+
+> 分发打包：已另存一份完整可运行版本「未成年直播打赏智能风控系统原型系统_版 1」（含模型、gift.csv、dataset、数据生成脚本）并压缩为 ZIP，新机器解压后按 "环境搭建" 建环境即可运行。
+
+## 七、页面功能说明
 
 
-## Citation
-If you find our paper and repository useful, please cite us in your paper:
-```
-@inproceedings{gao-etal-2023-livechat,
-    title = "{L}ive{C}hat: A Large-Scale Personalized Dialogue Dataset Automatically Constructed from Live Streaming",
-    author = "Gao, Jingsheng  and
-      Lian, Yixin  and
-      Zhou, Ziyi  and
-      Fu, Yuzhuo  and
-      Wang, Baoyuan",
-    booktitle = "Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)",
-    month = jul,
-    year = "2023",
-    address = "Toronto, Canada",
-    publisher = "Association for Computational Linguistics",
-    url = "https://aclanthology.org/2023.acl-long.858",
-    doi = "10.18653/v1/2023.acl-long.858",
-    pages = "15387--15405",
-}
-```
+
+| 页面        | 角色 | 功能                              |
+| --------- | -- | ------------------------------- |
+| 全局概览      | 平台 | 数字卡片、风险等级分布、风险类型统计、高风险 TOP      |
+| 平台风控后台    | 平台 | 行为风险检测、音频转写与话术识别、模拟充值人脸核验、证据包导出 |
+| 监护人守护页面   | 家长 | 消费总览、风险标签、打赏流水与时序、守护策略开关        |
+| 主播直播间风险提醒 | 主播 | 观众风险统计、风险类型饼图、脱敏观众名单、话术检测       |
+| 理赔审核工作台   | 保司 | 案件列表、AI 责任与赔款审核、通过 / 拒赔         |
+| 承保定价台     | 保司 | 家庭 / 主播风险评级、差异化保费方案             |
+| 风险档案      | 保司 | 家庭 / 主播历史风险、违规次数、投保限制状态         |
+
+## 八、模型实验结果
+
+**BERT 话术分类（测试集 136 条）**
+
+
+
+| Accuracy | F1     | Precision | Recall |
+| -------- | ------ | --------- | ------ |
+| 95.59%   | 95.16% | 93.65%    | 96.72% |
+
+**话术数据集 speech\_data.csv（共 1353 条）**
+
+
+
+* 正样本 615 条：诱导话术，来自公开新闻报道、监管通报、司法案例人工整理；
+
+* 负样本 738 条：仿真正常弹幕 + LiveChat 公开真实弹幕 + 人工补充正常话术。
+
+## 九、数据合规声明
+
+
+
+* 本项目**未抓取任何真实直播平台的直播内容、用户资料或交易数据**；
+
+* 用户打赏 / 充值行为数据为**仿真合成**，用于原型验证；
+
+* 诱导话术正样本来自**公开报道与司法案例**文本；正常话术含公开学术数据集 LiveChat 的弹幕；
+
+* 人脸核验仅为**前端 UI 模拟**，不采集、不比对任何人脸信息。
+
+## 十、局限与后续优化
+
+
+
+* 行为数据为仿真，上线前需以真实脱敏业务数据重新训练与验证；
+
+* BERT 训练集规模有限、部分负样本为仿真，对新型隐晦话术泛化能力有限；
+
+* 打磨方向：公开数据集外部验证、消融实验、超参调优、特征扩充、页面与演示视频优化。
+
+## 十一、参考与引用
+
+
+
+* Zhao, Y., et al. (2019). **PyOD**: A Python Toolbox for Scalable Outlier Detection.
+
+* Devlin, J., et al. (2018). **BERT**: Pre-training of Deep Bidirectional Transformers for Language Understanding.
+
+* Radford, A., et al. **Whisper**: Robust Speech Recognition via Large-Scale Weak Supervision.
+
+* **LiveChat** 公开直播弹幕数据集。

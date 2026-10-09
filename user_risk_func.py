@@ -7,6 +7,21 @@ import streamlit as st
 import lightgbm as lgb
 from sklearn.metrics import roc_auc_score
 
+def setup_cn_font():
+    """
+    注册项目自带开源中文字体（Noto Sans CJK SC），
+    解决云端Linux无中文字体导致matplotlib图表中文显示方框的问题
+    """
+    import os
+    import matplotlib
+    from matplotlib import font_manager
+    _root = os.path.dirname(os.path.abspath(__file__))
+    _font_file = os.path.join(_root, "fonts", "NotoSansCJKsc-Regular.otf")
+    if os.path.exists(_font_file):
+        font_manager.fontManager.addfont(_font_file)
+    matplotlib.rcParams["font.sans-serif"] = ["Noto Sans CJK SC", "SimHei", "Microsoft YaHei"]
+    matplotlib.rcParams["axes.unicode_minus"] = False
+
 def detect_user_risk(df_raw,contamination=0.08, large_threshold=200):
     #显示中间状态，方便修正bug
     # df_raw 是读进来的gift.csv原始数据
