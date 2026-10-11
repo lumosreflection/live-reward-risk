@@ -89,7 +89,7 @@ pip install -r requirements.txt
 
 
 ```
-cd /d "D:\比赛\保险类\中财保险+智能\数据集素材\LiveChat-master"
+cd /d "你的项目解压路径\LiveChat-master"
 conda activate minor_risk
 streamlit run streamlit_risk_main.py
 ```
