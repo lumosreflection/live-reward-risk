@@ -22,6 +22,31 @@ def setup_cn_font():
     matplotlib.rcParams["font.sans-serif"] = ["Noto Sans CJK SC", "SimHei", "Microsoft YaHei"]
     matplotlib.rcParams["axes.unicode_minus"] = False
 
+def _compute_hard_rule(df_raw, large_threshold):
+    """
+    向量化计算每个用户是否命中硬性风险规则（口径与 calc_risk_flags 保持一致）：
+    短时高频（相邻打赏间隔<60分钟的间隔数达到2个及以上）、
+    单笔大额（存在单笔金额超过阈值）、夜间大额（夜间存在单笔金额超过阈值）。
+    命中任意一条即视为硬规则命中，供高风险分级兜底使用。
+    返回包含 user_id、hard_rule（1命中/0未命中）的 DataFrame。
+    """
+    d = df_raw.copy()
+    d["gift_time"] = pd.to_datetime(d["gift_time"])
+    d = d.sort_values(["user_id", "gift_time"])
+    d["_gap_min"] = d.groupby("user_id")["gift_time"].diff().dt.total_seconds() / 60
+    d["_hour"] = d["gift_time"].dt.hour
+    d["_night"] = d["_hour"].apply(lambda h: 1 if h >= 23 or h <= 5 else 0)
+    d["_fast_gap"] = ((d["_gap_min"] < 60) & d["_gap_min"].notna()).astype(int)
+    d["_over"] = (d["gift_value"] > large_threshold).astype(int)
+    d["_night_over"] = d["_night"] * d["_over"]
+    hard = d.groupby("user_id").agg(
+        _fast_n=("_fast_gap", "sum"),
+        _over_n=("_over", "max"),
+        _night_over_n=("_night_over", "max")
+    ).reset_index()
+    hard["hard_rule"] = ((hard["_fast_n"] >= 2) | (hard["_over_n"] == 1) | (hard["_night_over_n"] == 1)).astype(int)
+    return hard[["user_id", "hard_rule"]]
+
 def detect_user_risk(df_raw,contamination=0.08, large_threshold=200):
     #显示中间状态，方便修正bug
     # df_raw 是读进来的gift.csv原始数据
@@ -92,9 +117,14 @@ def detect_user_risk(df_raw,contamination=0.08, large_threshold=200):
     # 标签转换：-1=异常(高风险)，1=正常
     user_feat["is_high_risk"] = user_feat["anomaly_score"].apply(lambda x: 1 if x == -1 else 0)
 
-    # 业务兜底：只有1笔且总金额不超大额阈值的用户，不可能构成大额非理性消费，强制判为正常
-    _single_small = (user_feat["total_gift_cnt"] == 1) & (user_feat["total_gift_money"] <= large_threshold)
-    user_feat.loc[_single_small, "is_high_risk"] = 0
+    # 分级处置兜底：合并硬性规则命中情况（口径与 calc_risk_flags 一致）
+    user_feat = user_feat.merge(_compute_hard_rule(df_raw, large_threshold), on="user_id", how="left")
+    user_feat["hard_rule"] = user_feat["hard_rule"].fillna(0).astype(int)
+    # 未命中硬规则、且累计打赏金额较低（<100元）的用户，其离群多由深夜行为模式导致、
+    # 损失风险低，不列入高风险（由页面三级预警归入关注或正常），消除“几块钱高风险”的误报
+    _low = (user_feat["hard_rule"] == 0) & (user_feat["total_gift_money"] < 100)
+    user_feat.loc[_low, "is_high_risk"] = 0
+    user_feat = user_feat.drop(columns=["hard_rule"])
 
     return user_feat
 
@@ -144,9 +174,12 @@ def build_user_feature(df_raw, contamination=0.08, large_threshold=200):
     user_feat["anomaly_score"] = clf_if.fit_predict(user_feat[feature_cols])
     user_feat["is_high_risk"] = user_feat["anomaly_score"].apply(lambda x:1 if x == -1 else 0)
 
-    # 业务兜底：单笔小额用户不构成大额非理性消费，强制判为正常
-    _single_small = (user_feat["total_gift_cnt"] == 1) & (user_feat["total_gift_money"] <= large_threshold)
-    user_feat.loc[_single_small, "is_high_risk"] = 0
+    # 分级处置兜底：合并硬规则命中情况，未命中硬规则且累计金额较低的用户不列入高风险
+    user_feat = user_feat.merge(_compute_hard_rule(df_raw, large_threshold), on="user_id", how="left")
+    user_feat["hard_rule"] = user_feat["hard_rule"].fillna(0).astype(int)
+    _low = (user_feat["hard_rule"] == 0) & (user_feat["total_gift_money"] < 100)
+    user_feat.loc[_low, "is_high_risk"] = 0
+    user_feat = user_feat.drop(columns=["hard_rule"])
     return user_feat, feature_cols
 
 def train_lgb_model(user_feature_df, feature_cols):
@@ -201,9 +234,10 @@ def calc_risk_flags(raw_df, user_id, large_threshold):
 def get_risk_level(row):
     """三级预警：🔴一级紧急 / 🟡二级关注 / 🟢正常"""
     f = row
-    if f["risk_night_large"] and f["risk_fast_charge"]:
+    # 一级紧急：短时高频连刷是诱导、冲动消费的典型特征，需立即干预
+    if f["risk_fast_charge"]:
         return "🔴一级紧急预警"
-    elif f["risk_single_large"] or f["risk_silent_burst"] or f["risk_spike"]:
+    elif f["risk_single_large"] or f["risk_night_large"] or f["risk_silent_burst"] or f["risk_spike"]:
         return "🟡二级关注预警"
     else:
         return "🟢正常"

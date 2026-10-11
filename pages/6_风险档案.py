@@ -15,18 +15,18 @@ flag_cols = ["risk_fast_charge", "risk_single_large", "risk_spike",
 
 def user_level(row):
     if row["is_high_risk"] == 1:
-        return "高风险"
+        return "一级紧急"
     if any(str(row[c]) == "存在风险" for c in flag_cols):
-        return "中风险"
+        return "二级关注"
     return "正常"
 
 def level_with_icon(level):
-    return {"高风险": "🔴高风险", "中风险": "🟡中风险", "正常": "🟢正常"}[level]
+    return {"一级紧急": "🔴一级紧急预警", "二级关注": "🟡二级关注预警", "正常": "🟢正常"}[level]
 
 def family_underwriting(level, violation_cnt):
-    if level == "高风险" or violation_cnt >= 3:
+    if level == "一级紧急" or violation_cnt >= 3:
         return "拒保"
-    elif level == "中风险" or violation_cnt >= 1:
+    elif level == "二级关注" or violation_cnt >= 1:
         return "加费承保"
     else:
         return "标准承保"
@@ -96,7 +96,7 @@ with tab_anchor:
         merged = raw_df.merge(rdf[["user_id", "风险等级"]], on="user_id", how="left")
         # 用户-直播间去重后统计观众与高风险观众
         ur = merged[["room_id", "user_id", "风险等级"]].drop_duplicates()
-        ur["is_high"] = (ur["风险等级"] == "高风险").astype(int)
+        ur["is_high"] = (ur["风险等级"] == "一级紧急").astype(int)
         room_aud = ur.groupby("room_id").agg(
             观众数=("user_id", "nunique"),
             高风险观众=("is_high", "sum")

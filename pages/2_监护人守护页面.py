@@ -39,11 +39,11 @@ flag_cols = ["risk_fast_charge", "risk_single_large", "risk_spike",
              "risk_silent_burst", "risk_night_large"]
 has_any_flag = any(str(user_row[c]) == "存在风险" for c in flag_cols)
 if user_row["is_high_risk"] == 1:
-    level_text = "🔴 高风险"
+    level_text = "🔴一级紧急预警"
 elif has_any_flag:
-    level_text = "🟡 中风险"
+    level_text = "🟡二级关注预警"
 else:
-    level_text = "🟢 低风险"
+    level_text = "🟢正常"
 
 col1, col2, col3 = st.columns(3)
 col1.metric("账号ID", selected)

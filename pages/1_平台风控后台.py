@@ -126,6 +126,8 @@ if df is not None:
                         one_flag = calc_risk_flags(df, uid, large_threshold)
                         risk_flag_list.append(one_flag)
                     risk_df = pd.DataFrame(risk_flag_list)
+                    # 生成三级预警标签（须在布尔值转文字之前，get_risk_level 依赖布尔值）
+                    risk_df["risk_level"] = risk_df.apply(get_risk_level, axis=1)
                     # =========布尔值转文字，解决方框问题========
                     bool_cols = ["risk_fast_charge", "risk_single_large", "risk_spike", "risk_silent_burst",
                                  "risk_night_large"]
@@ -144,6 +146,12 @@ if df is not None:
                 st.subheader("高风险用户名单")
                 st.dataframe(high_risk)
                 st.write(f"高风险用户数量：{len(high_risk)}")
+                # 三级预警分布（分级处置一览）
+                _lv = result_df["risk_level"].value_counts()
+                _lc1, _lc2, _lc3 = st.columns(3)
+                _lc1.metric("一级紧急预警", int(_lv.get("🔴一级紧急预警", 0)))
+                _lc2.metric("二级关注预警", int(_lv.get("🟡二级关注预警", 0)))
+                _lc3.metric("正常", int(_lv.get("🟢正常", 0)))
                 # 散点图
                 fig, ax = plt.subplots(figsize=(10, 6))
                 normal = result_df[result_df["is_high_risk"] == 0]
