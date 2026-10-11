@@ -65,8 +65,10 @@ def detect_user_risk(df_raw,contamination=0.08, large_threshold=200):
     print(f"【调试】收到的大额阈值large_threshold = {large_threshold}")
     print("====调试：用户特征前5行，观察night_large_cnt=====")
     print(user_feat[["user_id", "night_large_cnt"]].head())
-    # 缺失值填充：第一次送礼没有间隔，填充一个很大的数
-    user_feat["min_interval"] = user_feat["min_interval"].fillna(0)
+    # 缺失值填充：单笔用户算不出打赏间隔，不能填0（0在语义上表示极速连刷），
+    # 改用全体间隔的中位数填充，避免单笔用户在该维度被误判为高频异常
+    _med_interval = user_feat["min_interval"].median()
+    user_feat["min_interval"] = user_feat["min_interval"].fillna(_med_interval)
     
     
     
@@ -89,7 +91,11 @@ def detect_user_risk(df_raw,contamination=0.08, large_threshold=200):
     
     # 标签转换：-1=异常(高风险)，1=正常
     user_feat["is_high_risk"] = user_feat["anomaly_score"].apply(lambda x: 1 if x == -1 else 0)
-    
+
+    # 业务兜底：只有1笔且总金额不超大额阈值的用户，不可能构成大额非理性消费，强制判为正常
+    _single_small = (user_feat["total_gift_cnt"] == 1) & (user_feat["total_gift_money"] <= large_threshold)
+    user_feat.loc[_single_small, "is_high_risk"] = 0
+
     return user_feat
 
 #LightGBM+三级风险
@@ -119,7 +125,9 @@ def build_user_feature(df_raw, contamination=0.08, large_threshold=200):
     user_feat["night_ratio"] = user_feat.apply(
         lambda row: row["night_gift_money"] / row["total_gift_money"] if row["total_gift_money"]>0 else 0, axis=1
     )
-    user_feat["min_interval"] = user_feat["min_interval"].fillna(0)
+    # 单笔用户算不出间隔，不能填0（会被当成极速连刷），用中位数填充
+    _med_interval = user_feat["min_interval"].median()
+    user_feat["min_interval"] = user_feat["min_interval"].fillna(_med_interval)
 
     feature_cols = [
         "total_gift_money",
@@ -135,6 +143,10 @@ def build_user_feature(df_raw, contamination=0.08, large_threshold=200):
     clf_if = IsolationForest(contamination=contamination, random_state=42)
     user_feat["anomaly_score"] = clf_if.fit_predict(user_feat[feature_cols])
     user_feat["is_high_risk"] = user_feat["anomaly_score"].apply(lambda x:1 if x == -1 else 0)
+
+    # 业务兜底：单笔小额用户不构成大额非理性消费，强制判为正常
+    _single_small = (user_feat["total_gift_cnt"] == 1) & (user_feat["total_gift_money"] <= large_threshold)
+    user_feat.loc[_single_small, "is_high_risk"] = 0
     return user_feat, feature_cols
 
 def train_lgb_model(user_feature_df, feature_cols):
