@@ -1,6 +1,9 @@
 # 训练好的模型文件（约390MB，超GitHub单文件100MB限制；云端演示使用关键词规则）
 bert_live_speech_best/
 
+# Whisper语音模型本地缓存（约142MB，仅本地真实转写需要，云端用Mock）
+model_cache/
+
 # 保险证据包运行输出（运行时自动生成）
 output/
 

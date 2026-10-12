@@ -336,30 +336,77 @@ def merge_danmu_gift_risk(gift_risk_df, danmu_risk_df):
 def speech_to_text(audio_file, use_mock: bool = True):
     """
     audio_file: streamlit上传的文件对象
-    use_mock=True：模拟返回文本，不需要whisper；False使用真实whisper‑base
+    use_mock=True：模拟返回文本，不需要whisper；False使用真实whisper-base
+    说明：
+        - 本地（已安装ffmpeg）走真实Whisper，返回完整中文转写；
+        - 云端未安装whisper/torch时自动降级为模拟转写，保证页面不会整页崩溃。
     """
+    # 模拟转写：返回一整段直播话术（含正常句与诱导句），贴近真实转写效果
+    mock_segments = [
+        "欢迎各位观众来到直播间，今天就是和大家随便聊聊天。"
+        "家人们礼物刷起来，帮我冲冲榜单！",
+        "喜欢主播的可以点点关注，理性消费、量力而行。"
+        "感谢各位大哥的打赏，礼物继续走一波，帮我冲下榜单！",
+        "今天心情好，跟大家聊聊天、唱唱歌。"
+        "想要主播联系方式的，可以多刷点礼物支持一下。"
+    ]
+
     if use_mock:
         import random
-        mock_text_list = [
-            "家人们礼物刷起来，给我冲冲榜！",
-            "喜欢主播的可以多点点礼物支持一下",
-            "感谢各位大哥的打赏！",
-            "没有诱导话术，正常闲聊直播内容。"
-        ]
-        return random.choice(mock_text_list)
-    else:
-        import tempfile
+        return random.choice(mock_segments)
+
+    # 真实Whisper分支
+    import tempfile
+    try:
         import whisper
-        # 上传的是内存字节流，存临时文件给whisper读取
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-            tmp.write(audio_file.read())
-            tmp_path = tmp.name
+    except (ImportError, ModuleNotFoundError):
+        # 云端未安装 openai-whisper/torch，优雅降级为模拟转写
+        import random
+        return random.choice(mock_segments)
+
+    # ffmpeg兜底：系统PATH找不到ffmpeg时，尝试用imageio-ffmpeg自带二进制
+    import shutil
+    if shutil.which("ffmpeg") is None:
         try:
-            model = whisper.load_model("base")
-            result = model.transcribe(tmp_path)
-            return result["text"]
-        finally:
+            import imageio_ffmpeg
+            _ff_exe = imageio_ffmpeg.get_ffmpeg_exe()
+            _ff_dir = os.path.dirname(_ff_exe)
+            _ff_named = os.path.join(_ff_dir, "ffmpeg.exe")
+            if not os.path.exists(_ff_named):
+                shutil.copy2(_ff_exe, _ff_named)
+            os.environ["PATH"] = _ff_dir + os.pathsep + os.environ.get("PATH", "")
+        except Exception:
+            pass
+
+    # 按上传文件真实后缀写临时文件，兼容mp3/wav/m4a
+    suffix = ".mp3"
+    _up_name = getattr(audio_file, "name", "") or ""
+    for _ext in (".wav", ".m4a", ".mp3"):
+        if _up_name.lower().endswith(_ext):
+            suffix = _ext
+            break
+    # 上传的是内存字节流，存临时文件给whisper读取
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(audio_file.read())
+        tmp_path = tmp.name
+    try:
+        # 模型缓存默认放在项目根目录 model_cache/whisper（不占C盘、可随项目迁移）；
+        # 也可用环境变量 WHISPER_HOME 覆盖
+        _root_dir = os.path.dirname(os.path.abspath(__file__))
+        _whisper_dir = os.environ.get(
+            "WHISPER_HOME", os.path.join(_root_dir, "model_cache", "whisper")
+        )
+        os.makedirs(_whisper_dir, exist_ok=True)
+        model = whisper.load_model("base", download_root=_whisper_dir)
+        # initial_prompt 引导模型输出简体中文并补标点（base模型默认可能输出繁体、丢标点）
+        _prompt = "以下是普通话直播语音转写，请输出简体中文并正确添加标点符号。"
+        result = model.transcribe(tmp_path, language="zh", initial_prompt=_prompt)
+        return result["text"]
+    finally:
+        try:
             os.unlink(tmp_path)
+        except Exception:
+            pass
 
 
 
@@ -520,7 +567,17 @@ def export_insurance_evidence_full(
     return：zip文件路径
     """
     import os
-    os.makedirs(output_dir, exist_ok=True)
+    # 云端容器工作目录可能只读：若相对路径不可写，则回退到系统临时目录，保证zip一定能生成
+    try:
+        os.makedirs(output_dir, exist_ok=True)
+        _probe = os.path.join(output_dir, ".write_probe")
+        with open(_probe, "w", encoding="utf-8") as _f:
+            _f.write("ok")
+        os.remove(_probe)
+    except Exception:
+        import tempfile
+        output_dir = os.path.join(tempfile.gettempdir(), "evidence_package")
+        os.makedirs(output_dir, exist_ok=True)
 
     # 1 用户风险总表
     summary_path = os.path.join(output_dir, "user_risk_summary.csv")

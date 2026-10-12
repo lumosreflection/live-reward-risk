@@ -49,7 +49,7 @@ tab_family, tab_anchor, tab_reinvest = st.tabs(["家庭（用户）风险档案"
 # ===================== Tab1 家庭风险档案 =====================
 with tab_family:
     n_total = len(rdf)
-    n_high = (rdf["风险等级"] == "高风险").sum()
+    n_high = (rdf["风险等级"] == "一级紧急").sum()
     family_rows = []
     for _, r in rdf.iterrows():
         status = family_underwriting(r["风险等级"], r["违规次数"])

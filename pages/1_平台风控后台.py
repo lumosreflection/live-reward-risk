@@ -370,9 +370,15 @@ with st.expander("证据采集与分析工具箱（话术识别 / 证据包导�
         # 第二步：按所选引擎做话术识别
         if st.button("运行直播话术风险识别"):
             with st.spinner("话术风险识别中（首次加载BERT约需10-30秒）..."):
-                if engine_choice == "BERT微调模型":
-                    from user_risk_func import long_text_speech_risk_detect_bert
-                    speech_result = long_text_speech_risk_detect_bert(audio_text, threshold=bert_threshold)
+                if engine_choice.startswith("BERT"):
+                    try:
+                        from user_risk_func import long_text_speech_risk_detect_bert
+                        speech_result = long_text_speech_risk_detect_bert(audio_text, threshold=bert_threshold)
+                    except (ImportError, ModuleNotFoundError):
+                        # 云端未部署BERT权重/torch，自动降级为关键词规则，避免页面崩溃
+                        st.warning("当前环境未部署BERT推理依赖，已自动切换为关键词规则引擎")
+                        from user_risk_func import long_text_speech_risk_detect_rule
+                        speech_result = long_text_speech_risk_detect_rule(audio_text)
                 else:
                     from user_risk_func import long_text_speech_risk_detect_rule
                     speech_result = long_text_speech_risk_detect_rule(audio_text)
@@ -414,13 +420,15 @@ with st.expander("证据采集与分析工具箱（话术识别 / 证据包导�
                     speech_text=speech_input_text
                 )
             st.success("证据包生成完成！")
+            # 先把zip读成字节再交给下载按钮：直接传文件句柄在云端点击下载时会失效，导致空zip
             with open(zip_file_path, "rb") as f:
-                st.download_button(
-                    label="📥下载保险证据包 zip",
-                    data=f,
-                    file_name="insurance_evidence_package.zip",
-                    mime="application/zip"
-                )
+                zip_bytes = f.read()
+            st.download_button(
+                label="下载保险证据包 zip",
+                data=zip_bytes,
+                file_name="insurance_evidence_package.zip",
+                mime="application/zip"
+            )
 
 
 
