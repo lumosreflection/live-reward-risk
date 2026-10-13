@@ -52,6 +52,7 @@ if ctype == "family":
         m1.metric("年保费", str(plan["annual_premium"]) + "元")
         m2.metric("免赔额", str(plan["deductible"]) + "元")
         m3.metric("保额", str(plan["coverage"]) + "元")
+        st.caption("投保规则：每一被监护人最多投保5份，多投保部分保险人不承担保险责任；家庭整体保单总保险金额为全部被监护未成年人对应保障额度之和。")
 
         # 三档对比
         st.subheader("三档价格对比")
@@ -103,6 +104,7 @@ else:
         m1.metric("年保费", str(plan["annual_premium"]) + "元")
         m2.metric("免赔额", str(plan["deductible"]) + "元")
         m3.metric("保额", str(plan["coverage"]) + "元")
+        st.caption("投保规则：每一主播最多投保5份，多投保部分保险人不承担保险责任；公会整体保单总保险金额为全部参保主播单人年度保险金额之和。")
 
         st.subheader("三档价格对比")
         import pandas as pd

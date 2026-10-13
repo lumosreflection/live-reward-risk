@@ -868,8 +868,8 @@ def calculate_compensation(
     family_risk_level: str = "medium",   # low / medium / high
     platform_refund: float = 0.0,
     responsibility_ratio: float = 1.0,
-    single_limit: float = 5000.0,
-    annual_limit: float = 5000.0,
+    single_limit: float = None,
+    annual_limit: float = None,
     annual_paid: float = 0.0
 ):
     """
@@ -879,18 +879,24 @@ def calculate_compensation(
       2. 先扣平台已退款
       3. 再扣免赔额
       4. 再乘责任比例
-      5. 不超单次事故限额5000，不超年度累计限额5000
+      5. 不超单次事故限额、不超年度累计限额（按家庭风险等级：低风险10万/中风险15万/高风险20万，单次与年度相同）
     输入：
       loss_amount: 打赏损失总金额
       family_risk_level: 家庭风险等级 low/medium/high
       platform_refund: 平台已退款金额
       responsibility_ratio: 保险赔付比例（来自calculate_responsibility的insurance_pay_ratio）
-      single_limit: 单次事故赔偿限额，默认5000
-      annual_limit: 年度累计赔偿限额，默认5000
+      single_limit: 单次事故赔偿限额，默认None时按家庭风险等级自动取值（10万/15万/20万）
+      annual_limit: 年度累计赔偿限额，默认None时按家庭风险等级自动取值（10万/15万/20万）
       annual_paid: 本年度已赔付金额
     输出：
       dict: 各步骤金额、最终赔付、计算明细
     """
+    # ---------- 步骤0：按家庭风险等级确定单次/年度限额（未显式传入时） ----------
+    family_limit_table = {"low": 100000.0, "medium": 150000.0, "high": 200000.0}
+    if single_limit is None:
+        single_limit = family_limit_table.get(family_risk_level, 150000.0)
+    if annual_limit is None:
+        annual_limit = family_limit_table.get(family_risk_level, 150000.0)
     result = {
         "loss_amount": round(loss_amount, 2),
         "platform_refund": round(platform_refund, 2),
@@ -1127,14 +1133,14 @@ def calculate_premium(customer_type: str = "family", risk_level: str = "medium")
     """
     pricing_table = {
         "family": {
-            "low":    {"premium": 95,  "deductible": 200,  "coverage": 5000},
-            "medium": {"premium": 120, "deductible": 300,  "coverage": 5000},
-            "high":   {"premium": 160, "deductible": 500,  "coverage": 5000},
+            "low":    {"premium": 20,  "deductible": 200,  "coverage": 100000},
+            "medium": {"premium": 30,  "deductible": 300,  "coverage": 150000},
+            "high":   {"premium": 40,  "deductible": 500,  "coverage": 200000},
         },
         "anchor": {
-            "low":    {"premium": 140, "deductible": 800,  "coverage": 20000},
-            "medium": {"premium": 180, "deductible": 1000, "coverage": 20000},
-            "high":   {"premium": 230, "deductible": 1500, "coverage": 20000},
+            "low":    {"premium": 40,  "deductible": 800,  "coverage": 200000},
+            "medium": {"premium": 60,  "deductible": 1000, "coverage": 300000},
+            "high":   {"premium": 80,  "deductible": 1500, "coverage": 400000},
         }
     }
 
