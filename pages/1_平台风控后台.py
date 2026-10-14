@@ -263,6 +263,25 @@ if df is not None:
                 st.switch_page("pages/6_风险档案.py")
             st.caption("跳转到风险档案页查看该账号全量风险记录与投保状态")
 
+            # ========== 对标未成年人网络保护：身份标签 × 风险等级 分级联动处置（原型模拟） ==========
+            st.markdown("**账号身份标签与平台联动处置（模拟）**")
+            _drow = result_df[result_df["user_id"] == selected_user].iloc[0]
+            account_tag = st.selectbox(
+                "账号身份标签（读取平台账号体系，原型为模拟）",
+                options=["未成年", "成年"],
+                key="minor_tag_" + str(selected_user)
+            )
+            _dlv = str(_drow.get("risk_level", ""))
+            if account_tag == "未成年":
+                if _drow["is_high_risk"] == 1:
+                    st.error("【平台紧急预警】该未成年账号为高风险（一级紧急），已强制启用未成年人模式（青少年模式）、锁定充值打赏通道，并向监护人、平台风控中台双向告警。")
+                elif "二级" in _dlv:
+                    st.warning("【平台预警】该未成年账号为中风险（二级关注），已推送处置指令，平台自动切换未成年人模式（青少年模式）、限制充值打赏，并通知监护人。")
+                else:
+                    st.info("【低风险】该未成年账号暂无明显异常，已向监护人推送守护提醒，建议开启未成年人模式（青少年模式）。")
+            else:
+                st.caption("该账号为成年用户：无论风险等级高低，仅记录风险档案，不触发未成年人模式（青少年模式），不纳入本保险产品保障范围。")
+
             # ========== 模拟充值 + 人脸核验（嵌入业务流程，绑定当前选中用户） ==========
             st.markdown("**模拟充值与身份核验**")
             cur_row = result_df[result_df["user_id"] == selected_user].iloc[0]
